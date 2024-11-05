@@ -1,45 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const Typeahead = () => {
-  const [query, setQuery] = useState('');
-  const [users, setUsers] = useState([]);
- 
-  const fetchUsers = async (searchQuery) => {
-    if (!searchQuery) {
-      setUsers([]);
-      return;
-    }
+const GitHubUserSearch = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [userResults, setUserResults] = useState([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [isUserSelected, setIsUserSelected] = useState(false);
 
-    try {
-      const response = await axios.get(`https://api.github.com/search/users?q=${searchQuery}`);
-      console.log(response)
-      setUsers(response.data.items);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } 
-  };
+  const githubToken = import.meta.env.VITE_GITHUB_TOKEN;
 
   useEffect(() => {
-    fetchUsers(query);
-  }, [query]);
+    if (searchTerm.length < 3 || isUserSelected) {
+      setUserResults([]);
+      return;
+    }
+    fetchGitHubUsers(searchTerm);
+
+  }, [searchTerm]);
+
+
+  const fetchGitHubUsers = async (query) => {
+    try {
+      const response = await axios.get(
+        `https://api.github.com/search/users?q=${query}`,
+        {
+          headers: {
+            Authorization: `token ${githubToken}`,
+          },
+        }
+      );
+      setUserResults(response.data.items);
+      setActiveIndex(-1);
+    } catch (error) {
+      console.error('Error fetching GitHub users:', error);
+      setUserResults([]);
+    }
+  };
+
+
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+    setActiveIndex(-1);
+    setIsUserSelected(false);
+  };
+
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'ArrowDown') {
+      setActiveIndex((prevIndex) =>
+        prevIndex < userResults.length - 1 ? prevIndex + 1 : 0
+      );
+    } else if (event.key === 'ArrowUp') {
+      setActiveIndex((prevIndex) =>
+        prevIndex > 0 ? prevIndex - 1 : userResults.length - 1
+      );
+    } else if (event.key === 'Enter' && activeIndex >= 0) {
+      selectUser(userResults[activeIndex]);
+    }
+  };
+
+
+  const selectUser = (user) => {
+    setSearchTerm(user.login);
+    setUserResults([]);
+    setIsUserSelected(true);
+  };
+
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100vh' }}>
+      <h1>GitHub User Search</h1>
       <input
-      className='border-2 shadow-md p-2'
         type="text"
-        placeholder="Search GitHub users..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search GitHub users"
+        value={searchTerm}
+        onChange={handleSearchChange}
+        onKeyDown={handleKeyDown}
+        style={{ padding: '8px', width: '50%' }}
       />
-     
-      <ul>
-        {users.map((user) => (
-          <li key={user.id}>
-            <a href={user.html_url} target="_blank" rel="noopener noreferrer">
-              {user.login}
-            </a>
+      <ul style={{ listStyleType: 'none', paddingLeft: 0, width: '50%', textAlign: 'left', margin: '0' }}>
+        {userResults.map((user, index) => (
+          <li
+            key={user.id}
+            onClick={() => selectUser(user)}
+            style={{
+              padding: '5px 0',
+              backgroundColor: index === activeIndex ? 'gray' : 'transparent',
+            }}
+          >
+            {user.login}
           </li>
         ))}
       </ul>
@@ -47,4 +96,4 @@ const Typeahead = () => {
   );
 };
 
-export default Typeahead;
+export default GitHubUserSearch;
